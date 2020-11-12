@@ -7,6 +7,7 @@ import numpy as np
 import time
 import random
 from sklearn.metrics import f1_score
+from sklearn.metrics import accuracy_score
 from collections import defaultdict
 
 from graphsage.encoders import Encoder
@@ -76,15 +77,24 @@ def run_cora():
     agg2 = MeanAggregator(lambda nodes : enc1(nodes).t(), cuda=False)
     enc2 = Encoder(lambda nodes : enc1(nodes).t(), enc1.embed_dim, 128, adj_lists, agg2,
             base_model=enc1, gcn=True, cuda=False)
+#     agg1 = MeanAggregator(features, cuda=False)
+#     enc1 = Encoder(features, 1433, 128, adj_lists, agg1, gcn=False, cuda=False)
+#     agg2 = MeanAggregator(lambda nodes : enc1(nodes).t(), cuda=False)
+#     enc2 = Encoder(lambda nodes : enc1(nodes).t(), enc1.embed_dim, 128, adj_lists, agg2,
+#             base_model=enc1, gcn=False, cuda=False)
     enc1.num_samples = 5
     enc2.num_samples = 5
 
     graphsage = SupervisedGraphSage(7, enc2)
 #    graphsage.cuda()
-    rand_indices = np.random.permutation(num_nodes)
-    test = rand_indices[:1000]
-    val = rand_indices[1000:1500]
-    train = list(rand_indices[1500:])
+    train = range(200) + range(1500, num_nodes)
+    val = range(200, 500)
+    test = range(500, 1500)
+#     rand_indices = np.random.permutation(num_nodes)
+    
+#     test = rand_indices[:1000]
+#     val = rand_indices[1000:1500]
+#     train = list(rand_indices[1500:])
 
     optimizer = torch.optim.SGD(filter(lambda p : p.requires_grad, graphsage.parameters()), lr=0.7)
     times = []
@@ -99,11 +109,16 @@ def run_cora():
         optimizer.step()
         end_time = time.time()
         times.append(end_time-start_time)
-        print batch, loss.data[0]
+#         print batch, loss.item()[0]
 
+    val = test[:]
     val_output = graphsage.forward(val) 
     print "Validation F1:", f1_score(labels[val], val_output.data.numpy().argmax(axis=1), average="micro")
+#     print labels[val]
+#     print val_output.data.numpy().argmax(axis=1)
+    print "Validation Acc:", accuracy_score(labels[val], val_output.data.numpy().argmax(axis=1))
     print "Average batch time:", np.mean(times)
+    return labels[val], val_output.data.numpy().argmax(axis=1)
 
 def load_pubmed():
     #hardcoded for simplicity...
@@ -171,11 +186,13 @@ def run_pubmed():
         optimizer.step()
         end_time = time.time()
         times.append(end_time-start_time)
-        print batch, loss.data[0]
+#         print batch, loss.data[0]
 
     val_output = graphsage.forward(val) 
     print "Validation F1:", f1_score(labels[val], val_output.data.numpy().argmax(axis=1), average="micro")
+    print "Validation Acc:", accuracy_score(labels[val], val_output.data.numpy().argmax(axis=1))
     print "Average batch time:", np.mean(times)
 
 if __name__ == "__main__":
     run_cora()
+#     run_pubmed()
